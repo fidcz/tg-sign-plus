@@ -81,13 +81,15 @@ services:
 docker compose up -d
 ```
 
-访问 `http://localhost:8080`。首次启动只会在用户表为空时创建管理员：
+访问 `http://localhost:8080`。首次启动只会在用户表为空时创建 Web 管理员：
 
-- 用户名固定为 `admin`。
+- 登录页“用户名”填写 `admin`。
 - 设置了 `ADMIN_PASSWORD` 时，使用该密码。
 - 未设置时会生成随机密码，宿主机可在 `./data/initial_admin_password.txt` 查看。
 
-`ADMIN_PASSWORD` 只影响首次建库，不会覆盖已经存在的管理员密码。
+这里的用户名是 TG-Sign-Plus 管理端用户名，不是 Telegram 手机号、Telegram `@username`，也不是添加 Telegram 账号时填写的“账号名称”。项目没有 `ADMIN_USERNAME` 环境变量；首次创建的管理端用户名固定为 `admin`。
+
+`ADMIN_PASSWORD` 只影响首次建库，不会覆盖已经存在的管理员密码或用户名。如果已在“设置”中修改用户名，或复用了已有的 `./data` 目录，登录时应填写数据库中现有的用户名，不能再使用 `admin`。
 
 ### Docker 命令
 
@@ -165,6 +167,19 @@ npm run build
 输出目录为 `frontend/out`。仓库中的 Dockerfile 会把它复制到镜像的 `/web`，无需运行 `next start`。
 
 ## Web 使用流程
+
+### 用户名与账号名称
+
+| 页面字段 | 实际含义 | 示例 |
+| --- | --- | --- |
+| 登录页“用户名” | TG-Sign-Plus Web 管理端用户名；首次启动为 `admin` | `admin` |
+| 添加 Telegram 账号时的“账号名称” | 当前面板内用于区分 session、任务和日志的本地名称；由用户自定义，仅允许字母、数字、下划线和连字符，长度 1-64 | `Work_Account_01` |
+| Telegram 手机号 | 向 Telegram 请求登录验证码时使用的真实账号标识 | `+8613800138000` |
+| Telegram `@username` | Telegram 公开用户名，不用于 TG-Sign-Plus 管理端登录，也不代替手机号 | `@example` |
+
+管理端用户名可在“设置”中修改，长度为 3-50 个字符，修改时需要确认当前密码。修改成功后，后续登录必须使用新用户名；重启容器或重新设置 `ADMIN_PASSWORD` 不会把它恢复为 `admin`。
+
+### 基本操作
 
 1. 使用管理员账号登录，在“设置”中修改用户名/密码，并按需启用管理端 TOTP。
 2. 在“设置”中配置 Telegram API 凭证和 OpenAI 兼容接口。项目内置 Telegram API 凭证可直接试用，但长期部署建议换成自己的 `api_id`/`api_hash`。
