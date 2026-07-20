@@ -2,155 +2,57 @@
 
 <div align="center">
 
-**功能强大的 Telegram 自动化任务管理平台**
+**Telegram 多账号自动签到与任务管理平台**
 
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109.2+-green.svg)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-14.2+-black.svg)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109.2+-009688.svg)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.2+-black.svg)](https://nextjs.org/)
 
-[功能特性](#功能特性) • [快速开始](#快速开始) • [部署方式](#部署方式) • [使用文档](#使用文档) • [配置说明](#配置说明)
+[快速部署](#快速部署) · [本地开发](#本地开发) · [Web-使用流程](#web-使用流程) · [CLI](#cli) · [配置说明](#配置说明) · [签到任务](#签到任务)
 
 </div>
 
----
+TG-Sign-Plus 由 FastAPI 后端、Next.js 管理端和 `tg-signer` 自动化核心组成。Web 管理端负责账号、签到任务、执行历史和系统配置；CLI 还提供交互式任务配置、消息监控、诊断和单次执行能力。
 
-## 📖 项目简介
+## 实际功能边界
 
-TG-Sign-Plus 是一个基于 Telegram 的自动化任务管理平台，提供 Web 管理界面和 CLI 工具，支持自动签到、消息监控、AI 智能回复等功能。
+| 能力 | Web 管理端 | CLI |
+| --- | --- | --- |
+| Telegram 账号登录 | 手机验证码、二维码、Telegram 2FA、账号代理 | 手机验证码登录、全局代理 |
+| 签到任务 | 创建、编辑、启停、立即执行、复制、导入导出 | 交互式配置、执行、列出 |
+| 调度 | 固定时间/Cron、每日时间范围内随机执行 | `run`/`run-once` 只执行一次，不启动后端调度器 |
+| 执行记录 | 实时流程、历史记录、结构化诊断、账号日志 | `diagnose-run`、`canary-report` |
+| AI 能力 | 配置 OpenAI 兼容接口，用于图片选项、OCR、计算题和诗词题 | 环境变量或 `llm-config` |
+| 消息监控 | 当前没有对应页面 | 文本匹配、自动回复、转发、Server酱、UDP/HTTP 回调 |
+| 管理端安全 | JWT access token、refresh cookie、CSRF、可选 TOTP | 不适用 |
 
-### 核心能力
+> 消息监控和外部转发目前属于 CLI/核心库能力，不会随 Web 后端自动启动。
+> CLI 交互式任务保存在 `--workdir` 的文件目录中，Web 任务保存在数据库中；两者不会自动同步。
 
-- 🤖 **自动化任务执行**：支持定时签到、发送消息、点击按钮等多种自动化操作
-- 🧠 **AI 智能处理**：集成 OpenAI API，支持图片识别、计算题求解、诗词填空等 AI 功能
-- 📊 **Web 管理界面**：现代化的 Next.js 前端，提供直观的任务配置和监控
-- 🔐 **安全认证**：支持 JWT + 双因素认证（2FA/TOTP）
-- 📡 **消息监控转发**：实时监控群组/频道消息，支持 UDP/HTTP 转发
-- 🐳 **容器化部署**：提供 Docker 镜像，支持一键部署
-
----
-
-## 📸 项目预览
-
-<div align="center">
+## 项目预览
 
 ### 登录界面
+
 ![登录界面](assets/login.jpeg)
 
-### 控制台
+### 账号工作台
+
 ![控制台](assets/dashboard.jpeg)
 
 ### 任务管理
+
 ![任务管理](assets/tasks.jpeg)
 
-</div>
+## 快速部署
 
----
+Docker 镜像会同时构建 Next.js 静态页面并由 FastAPI 托管，部署后只需开放一个端口。
 
-## ✨ 功能特性
+### Docker Compose
 
-### 自动化任务
-
-- **签到任务**
-  - 定时自动签到（支持 Cron 表达式）
-  - 多账号、多群组批量管理
-  - 随机延迟执行，模拟真实用户行为
-  - 支持发送文本、骰子表情、点击按钮等操作
-
-- **AI 增强功能**
-  - 图片识别选择选项
-  - 自动解答计算题
-  - 诗词填空智能匹配
-  - 图片文字识别并回复
-
-- **消息监控**
-  - 实时监控私聊/群组/频道消息
-  - 支持正则表达式、关键词匹配
-  - 自动回复或转发到指定聊天
-  - 支持 Server酱 推送通知
-  - 支持 UDP/HTTP 外部转发
-
-### 管理功能
-
-- **Web 控制台**
-  - 账号管理（登录、登出、会话管理）
-  - 任务配置（可视化编辑签到流程）
-  - 执行历史查看
-  - 实时日志监控
-
-- **CLI 工具**
-  - 命令行快速操作
-  - 批量任务管理
-  - 配置导入导出
-
----
-
-## 🚀 快速开始
-
-### 前置要求
-
-- Python 3.10+
-- Node.js 20+（仅开发环境需要）
-- Telegram API 凭证（api_id 和 api_hash）
-
-### 获取 Telegram API 凭证
-
-1. 访问 [https://my.telegram.org/apps](https://my.telegram.org/apps)
-2. 登录你的 Telegram 账号
-3. 创建应用获取 `api_id` 和 `api_hash`
-
-### 本地开发
-
-#### 1. 克隆项目
-
-```bash
-git clone https://github.com/ssfun/tg-sign-plus.git
-cd tg-sign-plus
-```
-
-#### 2. 安装后端依赖
-
-```bash
-pip install -e .
-```
-
-#### 3. 启动后端服务
-
-```bash
-# 设置环境变量
-export APP_SECRET_KEY="your-secret-key-here"
-export TG_API_ID="your-api-id"
-export TG_API_HASH="your-api-hash"
-
-# 启动 FastAPI 服务
-uvicorn backend.main:app --host 0.0.0.0 --port 8080
-```
-
-#### 4. 启动前端（开发模式）
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-访问 `http://localhost:3000` 即可使用 Web 界面。
-
----
-
-## 🐳 部署方式
-
-### Docker 部署（推荐）
-
-#### 使用 Docker Compose
-
-```bash
-# 创建 docker-compose.yml
-cat > docker-compose.yml <<EOF
-version: '3.8'
-
+```yaml
 services:
-  tg-signer:
+  tg-sign-plus:
     image: sfun/tg-sign-plus:latest
     container_name: tg-sign-plus
     ports:
@@ -158,572 +60,361 @@ services:
     volumes:
       - ./data:/data
     environment:
-      - APP_SECRET_KEY=your-secret-key-here
-      - TG_API_ID=your-api-id
-      - TG_API_HASH=your-api-hash
-      - TZ=Asia/Shanghai
-      # 如通过 HTTPS 反向代理访问，建议开启：
-      # - APP_REFRESH_COOKIE_SECURE=true
-      # 可选：AI 功能配置
-      - OPENAI_API_KEY=your-openai-key
-      - OPENAI_BASE_URL=https://api.openai.com/v1
-      - OPENAI_MODEL=gpt-4o-mini
+      TZ: Asia/Shanghai
+      APP_SECRET_KEY: "请替换为 openssl rand -hex 32 的输出"
+      ADMIN_PASSWORD: "请设置首次启动使用的强密码"
+      # 可选：环境变量会覆盖管理端保存的 Telegram API 凭证
+      # TG_API_ID: "12345678"
+      # TG_API_HASH: "your-api-hash"
+      # 仅在 HTTPS 反向代理后启用
+      # APP_REFRESH_COOKIE_SECURE: "true"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz').read()"]
       interval: 30s
       timeout: 5s
       retries: 3
-EOF
-
-# 启动服务
-docker-compose up -d
+      start_period: 60s
 ```
 
-#### 使用 Docker 命令
+```bash
+docker compose up -d
+```
+
+访问 `http://localhost:8080`。首次启动只会在用户表为空时创建管理员：
+
+- 用户名固定为 `admin`。
+- 设置了 `ADMIN_PASSWORD` 时，使用该密码。
+- 未设置时会生成随机密码，宿主机可在 `./data/initial_admin_password.txt` 查看。
+
+`ADMIN_PASSWORD` 只影响首次建库，不会覆盖已经存在的管理员密码。
+
+### Docker 命令
 
 ```bash
 docker run -d \
   --name tg-sign-plus \
   -p 8080:8080 \
-  -v $(pwd)/data:/data \
-  -e APP_SECRET_KEY=your-secret-key-here \
-  -e TG_API_ID=your-api-id \
-  -e TG_API_HASH=your-api-hash \
+  -v "$(pwd)/data:/data" \
   -e TZ=Asia/Shanghai \
+  -e APP_SECRET_KEY="$(openssl rand -hex 32)" \
+  -e ADMIN_PASSWORD="replace-with-a-strong-password" \
   --restart unless-stopped \
   sfun/tg-sign-plus:latest
 ```
 
-如果使用 `http://服务器IP:8080` 或局域网 IP 直接访问，请保持
-`APP_REFRESH_COOKIE_SECURE` 未设置或为 `false`。否则浏览器不会保存登录后
-下发的 CSRF cookie，后续保存配置、修改用户名等写操作会返回 403。
-如通过 HTTPS 反向代理访问，可在 `docker run` 中额外添加
-`-e APP_REFRESH_COOKIE_SECURE=true`。
-
-### 构建自定义镜像
+### 自行构建
 
 ```bash
-# 克隆项目
 git clone https://github.com/ssfun/tg-sign-plus.git
 cd tg-sign-plus
-
-# 构建镜像
-docker build -t tg-sign-plus:custom .
-
-# 运行
-docker run -d \
-  --name tg-sign-plus \
-  -p 8080:8080 \
-  -v $(pwd)/data:/data \
-  -e APP_SECRET_KEY=your-secret-key-here \
-  tg-sign-plus:custom
+docker build -t tg-sign-plus:local .
+docker run -d --name tg-sign-plus -p 8080:8080 -v "$(pwd)/data:/data" tg-sign-plus:local
 ```
 
-### 低内存环境部署（512MB，如 Render 免费套餐）
+镜像构建阶段需要拉取 `ghcr.io/komari-monitor/komari-agent:latest`。只有同时设置 `KOMARI_SERVER` 和 `KOMARI_SECRET` 时，容器入口才会启动该 agent。
 
-在内存受限的平台上部署时，建议添加以下环境变量以优化内存使用：
+## 本地开发
+
+### 环境要求
+
+- Python 3.10+
+- Node.js 20+
+- npm
+
+### 后端
 
 ```bash
-# 降低 Telegram channel diff 并发数（默认 2，极端情况可设为 1）
-TG_CHANNEL_DIFF_CONCURRENCY=2
+git clone https://github.com/ssfun/tg-sign-plus.git
+cd tg-sign-plus
+pip install -e .
 
-# 限制全局任务并发
-TG_GLOBAL_CONCURRENCY=1
+export APP_DATA_DIR="$(pwd)/data"
+export APP_SECRET_KEY="$(openssl rand -hex 32)"
+export ADMIN_PASSWORD="replace-with-a-strong-password"
 
-# 限制 Telegram RPC 重试和连接等待时间，避免网络异常时长时间堆积后台任务
-TG_RPC_RETRIES=2
-TG_RPC_TIMEOUT=30
-TG_CALLBACK_RETRIES=3
-TG_SEND_MESSAGE_TIMEOUT=20
-TG_SUCCESS_ASSERT_TIMEOUT=30
-TG_AI_REQUEST_TIMEOUT=45
-TG_CONNECT_TIMEOUT=20
-TG_TCP_TIMEOUT=8
-TG_SLEEP_THRESHOLD=120
-TG_WORKERS=16
-SIGN_TASK_RUN_TIMEOUT=180
-
-# 低内存排障时可强制关闭后端签到实时 updates；按钮/回复类签到可能失败，默认不要设置
-# TG_SIGN_TASK_DISABLE_UPDATES=true
-
-# 减少 glibc 内存碎片（已内置于 Docker 镜像）
-MALLOC_ARENA_MAX=2
+uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-如果账号加入了大量群组（100+），启动时可能触发大量 `GetChannelDifference` 请求导致内存峰值。上述配置通过限制并发数来平滑内存使用。
+本地设置 `APP_DATA_DIR` 很重要，否则默认会尝试 `/data`，不可写时再退回系统临时目录，数据不一定持久化。
 
----
+### 前端
 
-## 📚 使用文档
-
-### CLI 命令
+另开终端：
 
 ```bash
-# 查看帮助
+cd frontend
+npm ci
+npm run dev
+```
+
+访问 `http://localhost:3000`。开发模式下 Next.js 默认把 `/api/*` 转发到 `http://127.0.0.1:8000`；如果后端使用其他地址，请在启动前设置 `API_PROXY_TARGET`。
+
+```bash
+API_PROXY_TARGET=http://127.0.0.1:8080 npm run dev
+```
+
+生产构建使用静态导出：
+
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+输出目录为 `frontend/out`。仓库中的 Dockerfile 会把它复制到镜像的 `/web`，无需运行 `next start`。
+
+## Web 使用流程
+
+1. 使用管理员账号登录，在“设置”中修改用户名/密码，并按需启用管理端 TOTP。
+2. 在“设置”中配置 Telegram API 凭证和 OpenAI 兼容接口。项目内置 Telegram API 凭证可直接试用，但长期部署建议换成自己的 `api_id`/`api_hash`。
+3. 在账号页通过手机号或二维码登录 Telegram。若 Telegram 账号启用了两步验证，还需输入该账号的 2FA 密码。
+4. 每个账号可单独设置代理、备注和聊天缓存有效期。代理格式由后端解析，例如 `socks5://user:pass@host:port`。
+5. 进入账号工作台创建任务，选择目标会话、调度模式和动作序列。
+6. 任务可以立即执行，也可以交给后端 APScheduler 定时执行；任务历史会保存流程、结果摘要和诊断信息。
+7. 单个任务可复制/导入导出；“设置”页可导入导出全部任务和设置。
+
+健康检查端点：
+
+- `/health`、`/healthz`：进程存活即返回 200。
+- `/readyz`：数据库初始化和调度同步完成后返回 200，否则返回 503。
+
+## CLI
+
+安装项目后会注册 `tg-signer` 命令。全局选项必须放在子命令前。
+
+```bash
+# 帮助
 tg-signer --help
 
-# 登录账号
-tg-signer login my_account
+# 登录账号；也兼容 tg-signer login my_account
+tg-signer --account my_account login
 
-# 配置签到任务
-tg-signer config my_account my_task
+# 交互式创建/修改签到任务
+tg-signer --account my_account config my_task
 
-# 执行签到任务
-tg-signer run my_account my_task
+# run 与 run-once 当前等价，均只执行一次
+tg-signer --account my_account run my_task
+tg-signer --account my_account run-once my_task
 
-# 单次执行（不等待定时）
-tg-signer run-once my_account my_task
+# 任务列表和消息发送
+tg-signer --account my_account list
+tg-signer --account my_account send --chat-id 123456 --text "Hello"
+tg-signer --account my_account send-dice --chat-id 123456 --emoji "🎲"
 
-# 配置 AI 模型
-tg-signer llm-config
+# AI 配置保存在 --workdir 指向的目录
+tg-signer --workdir . llm-config
 
-# 发送消息
-tg-signer send my_account --chat-id 123456 --text "Hello"
-
-# 查看任务列表
-tg-signer list my_account
+# 消息监控必须保持进程运行
+tg-signer --account my_account monitor-config my_monitor
+tg-signer --account my_account monitor my_monitor
 ```
 
-### Web 界面使用
+CLI 默认把配置、日志和 session 放在当前目录。可以显式指定：
 
-1. **首次登录**
-   - 访问 `http://localhost:8080`
-   - 使用默认管理员账号登录（首次启动会自动创建）
-   - 建议立即修改密码并启用 2FA
-
-2. **添加 Telegram 账号**
-   - 进入「账号管理」页面
-   - 点击「添加账号」
-   - 输入手机号，接收验证码完成登录
-
-3. **配置签到任务**
-   - 选择账号，进入「任务管理」
-   - 点击「新建任务」
-   - 配置签到时间、目标群组、执行动作
-   - 保存并启用任务
-
-4. **查看执行历史**
-   - 在「任务历史」页面查看执行记录
-   - 支持查看详细日志和错误信息
-
-### 签到任务配置示例
-
-#### 简单文本签到
-
-```json
-{
-  "chats": [
-    {
-      "chat_id": -1001234567890,
-      "name": "示例群组",
-      "actions": [
-        {
-          "action": 1,
-          "text": "/签到"
-        }
-      ],
-      "delete_after": 5
-    }
-  ],
-  "sign_at": "0 6 * * *",
-  "random_seconds": 300
-}
+```bash
+tg-signer \
+  --workdir /data/.signer \
+  --session-dir /data/sessions \
+  --account my_account \
+  run my_task
 ```
 
-#### 带按钮点击的签到
+`diagnose-run` 和 `canary-report` 读取 Web 后端数据库时，需要通过 `--data-dir` 或 `--database-url` 指向同一数据源：
 
-```json
-{
-  "chats": [
-    {
-      "chat_id": -1001234567890,
-      "actions": [
-        {
-          "action": 1,
-          "text": "/start"
-        },
-        {
-          "action": 3,
-          "text": "签到"
-        }
-      ]
-    }
-  ],
-  "sign_at": "0 8 * * *"
-}
+```bash
+tg-signer --data-dir /data --account my_account diagnose-run my_task
+tg-signer --data-dir /data --account my_account canary-report
+tg-signer --data-dir /data --account my_account canary-report --json-output
+tg-signer --data-dir /data --account my_account canary-report --max-age-hours 36 --strict
 ```
 
-#### AI 图片识别签到
+`--strict` 会在整体状态不是 `pass` 时返回非零退出码。默认只接受最近 36 小时内的最新运行证据。
 
-```json
-{
-  "chats": [
-    {
-      "chat_id": -1001234567890,
-      "actions": [
-        {
-          "action": 1,
-          "text": "/checkin"
-        },
-        {
-          "action": 4
-        }
-      ]
-    }
-  ],
-  "sign_at": "0 9 * * *"
-}
-```
+## 配置说明
 
----
+### 服务与安全
 
-## ⚙️ 配置说明
-
-### 环境变量
-
-#### 必需配置
-
-| 变量名 | 说明 | 示例 |
-|--------|------|------|
-| `APP_SECRET_KEY` | JWT 密钥（生产环境必须设置） | `your-random-secret-key` |
-| `TG_API_ID` | Telegram API ID | `12345678` |
-| `TG_API_HASH` | Telegram API Hash | `abcdef1234567890` |
-
-#### 可选配置
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `PORT` | 服务端口 | `8080` |
-| `TZ` | 时区 | `Asia/Shanghai` |
-| `BASE_DIR` | 数据目录 | `/data` |
-| `DATABASE_URL` | 数据库连接（支持 PostgreSQL）；未设置时使用可写数据目录下的 `db.sqlite`，Docker 通常为 `/data/db.sqlite` | `sqlite:////data/db.sqlite` |
-| `APP_REFRESH_COOKIE_SECURE` | 仅通过 HTTPS 访问时设为 `true`；HTTP/IP 直连需保持 `false`，否则写操作会因 CSRF cookie 丢失返回 403 | `false` |
-| `OPENAI_API_KEY` | OpenAI API 密钥 | - |
-| `OPENAI_BASE_URL` | OpenAI API 地址 | `https://api.openai.com/v1` |
-| `OPENAI_MODEL` | 使用的模型 | `gpt-4o-mini` |
-| `SERVER_CHAN_SEND_KEY` | Server酱推送密钥 | - |
-| `TG_CHANNEL_DIFF_CONCURRENCY` | Telegram GetChannelDifference 并发数 | `2` |
-| `TG_GLOBAL_CONCURRENCY` | Telegram 任务全局并发数 | `1` |
-| `TG_RPC_RETRIES` | Telegram RPC 默认重试次数 | `2` |
-| `TG_RPC_TIMEOUT` | Telegram RPC 默认超时秒数 | `30` |
-| `TG_CALLBACK_RETRIES` | Telegram 按钮回调超时重试次数 | `3` |
-| `TG_SEND_MESSAGE_TIMEOUT` | 发送 Telegram 文本消息超时秒数 | `20` |
-| `TG_SUCCESS_ASSERT_TIMEOUT` | 结果关键词等待秒数 | `30` |
-| `TG_AI_REQUEST_TIMEOUT` | AI/OCR/视觉识别单次请求超时秒数 | `45` |
-| `TG_CONNECT_TIMEOUT` | Telegram 连接/认证阶段超时秒数 | `20` |
-| `SIGN_TASK_ACCOUNT_LOCK_TIMEOUT` | 签到任务等待同账号执行锁的最长秒数 | `300` |
-| `SIGN_TASK_GLOBAL_CONCURRENCY_TIMEOUT` | 签到任务等待全局并发槽的最长秒数 | `300` |
-| `TG_CONNECT_RETRIES` | Telegram 连接/认证阶段超时或网络错误重试次数 | `3` |
-| `TG_CONNECT_RETRY_WAIT` | Telegram 连接/认证阶段重试等待秒数 | `3` |
-| `TG_TCP_TIMEOUT` | Telegram 底层 TCP 连接超时秒数 | `8` |
-| `TG_SLEEP_THRESHOLD` | Telegram FloodWait 自动等待阈值秒数 | `120` |
-| `TG_WORKERS` | Telegram updates handler worker 数量 | `16` |
-| `SIGN_TASK_RUN_TIMEOUT` | 单次签到任务总超时秒数；事件引擎任务会自动按 chat `event_timeout`、chat 数量和间隔抬高到足够覆盖内部事件等待 | `180` |
-| `SIGN_TASK_RUN_TIMEOUT_OVERHEAD` | 事件引擎外层任务超时额外余量秒数，用于覆盖登录、预热、清理和少量调度开销 | `90` |
-| `TG_EVENT_ENGINE_ACTION_TIMEOUT` | 事件引擎单个响应动作超时秒数；用于限制一次按钮回调、下载/OCR、验证码回复等交互卡住的时间 | `45` |
-| `TG_EVENT_ENGINE_AI_FALLBACK` | 未配置的后续交互是否启用 AI 兜底；默认关闭，可在单个 chat 上用 `event_ai_fallback: true` 开启 | `0` |
-| `TG_SIGN_TASK_DISABLE_UPDATES` | 强制关闭后端签到任务的 Telegram 实时 updates（仅低内存排障时使用） | `false` |
-| `MALLOC_ARENA_MAX` | glibc malloc arena 数量（降低可减少内存碎片） | `2` |
-
-### 动作类型说明
-
-| 动作代码 | 说明 | 参数 |
-|---------|------|------|
-| `1` | 发送文本 | `text`: 要发送的文本 |
-| `2` | 发送骰子 | `dice`: 骰子表情（🎲/🎯/🏀/⚽/🎳/🎰） |
-| `3` | 点击键盘按钮 | `text`: 按钮文本 |
-| `4` | AI 图片识别选择 | 无 |
-| `5` | AI 回复计算题 | 无 |
-| `6` | AI 图片文字识别并回复 | 可选 `caption_pattern`: 图片 caption 正则；可选 `captcha_lengths`: 验证码长度列表；可选 `captcha_charset`: 允许字符；可选 `captcha_case`: `preserve`/`upper`/`lower`；可选 `reply_to_message`: 是否回复到验证码图片消息 |
-| `7` | AI 计算题点击按钮 | 无 |
-| `8` | AI 诗词填空点击按钮 | 无 |
-| `9` | 判断签到结果 | `keywords`: 结果关键词列表；命中任意关键词即视为完成 |
-
-### 签到执行引擎
-
-签到任务统一使用消息事件驱动引擎：收到机器人消息后即时处理按钮、验证码图片、计算题，并只根据用户在 `action: 9` 中配置的 `keywords` 判断任务结果。旧导入配置中即使包含 `engine: legacy` 也会被归一化为 `event`，不再提供按动作列表逐步等待和执行的兼容流水线。
-
-事件引擎只有在动作列表包含 `action: 9`（成功关键字判断）时才会等待最终结果；如果任务只是发送消息、投骰子或点击按钮，不需要确认机器人返回结果，可以省略 `action: 9`，动作完成后会直接视为成功。
-
-示例：
-
-```json
-{
-  "_version": 3,
-  "engine": "event",
-  "sign_at": "0 6 * * *",
-  "retry_count": 3,
-  "chats": [
-    {
-      "chat_id": 10001,
-      "name": "sample_captcha_bot",
-      "event_timeout": 120,
-      "event_retries": 3,
-      "event_retry_wait": 2,
-      "event_history_limit": 3,
-      "event_action_timeout": 45,
-      "event_ai_fallback": false,
-      "actions": [
-        { "action": 1, "text": "/start" },
-        { "action": 3, "text": "签到" },
-        {
-          "action": 6,
-          "caption_pattern": "请输入验证码",
-          "captcha_lengths": [4],
-          "captcha_charset": "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-          "captcha_case": "upper",
-          "reply_to_message": true
-        },
-        {
-          "action": 9,
-          "keywords": ["签到成功", "签到过了"]
-        }
-      ]
-    }
-  ]
-}
-```
-
-事件引擎相关环境变量：
-
-也可以在单个 chat 上配置 `event_timeout`、`event_retries`、`event_retry_wait`、`event_history_limit`、`event_action_timeout`、`event_ai_fallback` 覆盖下列环境变量，适合响应较慢、需要单独加长等待或开启历史救援的任务。
-
-| 变量 | 说明 | 默认值 |
+| 环境变量 | 实际行为 | 默认值 |
 | --- | --- | --- |
-| `TG_EVENT_ENGINE_TIMEOUT` | 单个 chat 的事件驱动总等待秒数 | `120` |
-| `TG_EVENT_ENGINE_INLINE_RETRIES` | 事件流内部遇到验证码/网络错误时的重试次数 | `3` |
-| `TG_EVENT_ENGINE_RETRY_WAIT` | 事件流内部重试入口命令前等待秒数 | `2` |
-| `TG_EVENT_ENGINE_ACTION_TIMEOUT` | 单个响应动作超时秒数；超时会记录 `event_engine_response_action_timeout` 并触发事件流内部重试 | `45` |
-| `TG_EVENT_ENGINE_HISTORY_LIMIT` | 扫描最近历史消息条数；默认扫描最近 3 条，会在启动入口命令前和运行等待期间低频补漏，适合救援漏掉的验证码/结果消息；设为 `0` 可关闭 | `3` |
-| `TG_EVENT_ENGINE_HISTORY_RESCUE_INTERVAL` | 运行等待期间历史补漏扫描间隔秒数，仅在 `TG_EVENT_ENGINE_HISTORY_LIMIT` 或 chat `event_history_limit` 大于 0 时生效 | `5` |
-| `TG_EVENT_ENGINE_HISTORY_RESULT_MAX_AGE` | 启动前历史扫描允许消费的消息最大年龄秒数，避免把很久以前的结果/验证码消息当作本次结果；设为 `0` 表示不限制 | `600` |
-| `TG_EVENT_ENGINE_AI_FALLBACK` | 未配置的后续交互是否启用 AI 兜底；默认关闭。建议只对会临时弹出额外验证按钮、且动作列表无法稳定覆盖的任务开启 | `0` |
+| `APP_SECRET_KEY` | JWT 和 CSRF 签名密钥；未设置时尝试在数据目录生成 `.secret_key` | 自动生成并持久化 |
+| `ADMIN_PASSWORD` | 仅用于空用户表首次创建 `admin` | 生成随机密码并写入 `initial_admin_password.txt` |
+| `APP_DATA_DIR` | SQLite、session、日志和持久化密钥的根目录 | `/data`，不可写时退回临时目录 |
+| `APP_DATABASE_URL` | SQLAlchemy 数据库 URL | 数据目录中的 `db.sqlite` |
+| `DATABASE_URL` | `APP_DATABASE_URL` 未设置时使用的兼容别名 | 未设置 |
+| `TZ` | 调度器时区 | 后端默认 `Asia/Hong_Kong`，Docker 默认 `Asia/Shanghai` |
+| `PORT` | Docker 入口启动 Uvicorn 的端口 | `8080` |
+| `APP_REFRESH_COOKIE_SECURE` | HTTPS 部署设为 `true`；HTTP/IP 直连必须为 `false` | `false` |
+| `APP_CORS_ALLOW_ORIGIN_REGEX` | 跨域来源正则 | 仅 localhost/127.0.0.1 |
+| `APP_ALLOW_PASSWORD_TOTP_RESET` | 是否开放通过密码重置管理端 TOTP | `false` |
 
-启动前历史扫描只消费明确结果消息和可回复的图片验证码；旧菜单按钮、图片选项、计算题点击和文本计算题不会推进当前流程，避免旧 callback 或旧题目跳过 fresh 入口命令。运行期间的历史补漏仍会处理本次入口之后的新消息和已跟踪消息编辑。
-
-事件引擎诊断报告：
-
-任务历史记录会保存结构化 `flow_items`，并自动生成 `diagnostics` 诊断摘要。后台历史弹窗会展示“诊断通过 / 需观察 / 诊断失败”和每个检查项。CLI canary 与 API 报告会基于当前账号真实任务配置和最近运行历史汇总，不绑定任何特定 bot，也不是独立总览模块。做回归时重点看：
-
-- `事件引擎启动`、预期按钮点击、验证码识别/回复、结果关键词命中是否通过。
-- `可信按钮超时后继续推进` 是否通过，用于验证“签到”“我不是机器人”这类 callback timeout 不会卡死。
-- `消息驱动动作推进` 出现时，表示某条机器人消息确实触发了响应动作从第 N 步推进到第 N+1 步，便于确认流程不是按脚本盲目前进。
-- `图片选项题严格回调` 是否通过，用于确认 `action=4` 不会因默认推进误判。
-- `结果命中后不再 OCR` 是否通过，用于确认图片 caption 命中结果关键词后不会再次识别验证码。
-- `历史已处理消息编辑复查` 出现时，表示运行期间漏掉了实时 edited update，但事件引擎通过历史补漏复查启动历史或实时流程中已处理过的消息编辑版本救回了结果。
-- `无回调按钮跳过` 出现时，表示匹配到同名按钮但它不是可回调按钮，事件引擎已跳过以免点错 URL/菜单按钮。
-- `按钮回调未确认` 出现时，表示 Telegram 没确认本次 callback；事件引擎会保留重试空间，不把这次点击当作已经可靠完成。
-- `事件内部重试耗尽` 出现时，表示事件引擎内部验证码/网络重试预算已经用完，需要结合前序 retry 原因和机器人返回继续排查。
-- 失败任务如果出现 `事件引擎总超时`、`事件响应动作超时` 或 `历史补漏失败隔离`，说明还需要结合网络/RPC 日志继续观察。
-
-也可以用 CLI 汇总当前任务的最新事件引擎诊断：
+SQLite 默认启用 WAL。也可使用 PostgreSQL，例如：
 
 ```bash
-tg-signer --account jiegto canary-report
-tg-signer --account jiegto canary-report --json-output
-tg-signer --account jiegto canary-report --max-age-hours 36
-tg-signer --account jiegto canary-report --strict
-tg-signer --database-url sqlite:////data/db.sqlite --account jiegto canary-report --max-age-hours 36
-tg-signer --data-dir /data --account jiegto canary-report --max-age-hours 36
+APP_DATABASE_URL=postgresql://user:password@db:5432/tg_sign_plus
 ```
 
-报告为 `pass` 表示当前配置和最新历史证据足以证明任务的事件引擎关键路径通过。缺配置、缺关键动作、无历史、失败、需观察或最新证据过期都会让整体结果不是 `pass`。默认只接受 36 小时内的最新历史，避免旧成功记录误判当前已经稳定。
-使用 `--strict` 时，整体状态不是 `pass` 会返回非零退出码，适合部署后或 CI 中做硬性验收。
+如果通过 HTTPS 反向代理访问，设置 `APP_REFRESH_COOKIE_SECURE=true`；通过 `http://服务器IP:8080` 访问时不要开启，否则浏览器不会携带安全 cookie，后续写请求会因 CSRF 校验返回 403。
 
-### Cron 表达式
+### Telegram 与 AI
 
-支持标准 Cron 表达式或简化时间格式：
+| 环境变量 | 说明 |
+| --- | --- |
+| `TG_API_ID` / `TG_API_HASH` | 覆盖管理端保存或项目内置的 Telegram API 凭证 |
+| `OPENAI_API_KEY` | CLI 使用的 OpenAI 或兼容服务 API Key |
+| `OPENAI_BASE_URL` | CLI 使用的可选兼容接口地址 |
+| `OPENAI_MODEL` | CLI 使用的模型名称 |
+| `SERVER_CHAN_SEND_KEY` | CLI 消息监控的 Server酱 SendKey |
 
-```bash
-# 每天 6:00 执行
-0 6 * * *
+Web 后端的 Telegram、AI 和全局设置保存在数据库中。`TG_API_ID`/`TG_API_HASH` 可以覆盖 Web 保存的 Telegram 凭证，但 Web 签到运行时的 AI 配置只读取管理端保存值。CLI 则优先读取上述 OpenAI 环境变量，也可读取 `--workdir` 下的 `.env` 和交互式配置文件。
 
-# 每天 8:30 执行
-30 8 * * *
+### 并发与超时
 
-# 每周一 9:00 执行
-0 9 * * 1
+以下变量用于资源受限环境或网络排障。除非出现明确问题，建议保留默认值。
 
-# 简化格式（自动转换为 Cron）
-06:00:00
-```
+| 环境变量 | 默认值 | 作用 |
+| --- | ---: | --- |
+| `TG_GLOBAL_CONCURRENCY` | `1` | 全局 Telegram 会话并发数 |
+| `TG_CHANNEL_DIFF_CONCURRENCY` | `2` | channel difference 并发数 |
+| `TG_RPC_RETRIES` | `2` | Telegram RPC 重试次数 |
+| `TG_RPC_TIMEOUT` | `30` | Telegram RPC 超时秒数 |
+| `TG_CONNECT_TIMEOUT` | `20` | 连接/认证阶段超时秒数 |
+| `TG_CONNECT_RETRIES` | `3` | 连接/认证阶段尝试次数 |
+| `TG_CONNECT_RETRY_WAIT` | `3` | 连接重试等待秒数 |
+| `TG_TCP_TIMEOUT` | `8` | 底层 TCP 超时秒数 |
+| `TG_SLEEP_THRESHOLD` | `120` | FloodWait 自动等待阈值秒数 |
+| `TG_WORKERS` | `16` | Telegram updates handler worker 数量 |
+| `TG_SEND_MESSAGE_TIMEOUT` | `20` | 发送消息超时秒数 |
+| `TG_AI_REQUEST_TIMEOUT` | `45` | AI 请求超时秒数 |
+| `SIGN_TASK_RUN_TIMEOUT` | `180` | 单次任务基础总超时秒数；事件任务会按配置扩展 |
+| `SIGN_TASK_ACCOUNT_LOCK_TIMEOUT` | `300` | 等待同账号执行锁的最长秒数 |
+| `SIGN_TASK_GLOBAL_CONCURRENCY_TIMEOUT` | `300` | 等待全局并发槽的最长秒数 |
+| `TG_SIGN_TASK_DISABLE_UPDATES` | `false` | 强制关闭签到 updates，仅用于低内存排障；按钮/回复类任务可能失败 |
 
----
+## 签到任务
 
-## 🔧 高级功能
+### 当前配置格式
 
-### 消息监控与转发
+当前写入格式固定为 `_version: 3` 和 `engine: event`。旧版配置会在读取/导入时归一化到事件引擎。
 
-```bash
-# 配置监控任务
-tg-signer monitor my_account my_monitor
-
-# 配置示例：监控群组消息并转发
-{
-  "match_cfgs": [
-    {
-      "chat_id": -1001234567890,
-      "rule": "contains",
-      "rule_value": "关键词",
-      "forward_to_chat_id": 123456789,
-      "push_via_server_chan": true
-    }
-  ]
-}
-```
-
-### AI 自动回复
-
-```bash
-# 配置 AI 回复
-{
-  "chat_id": -1001234567890,
-  "rule": "all",
-  "ai_reply": true,
-  "ai_prompt": "你是一个友好的助手，请简洁回复用户的问题。"
-}
-```
-
-### 外部系统集成
-
-支持通过 UDP 或 HTTP 转发消息到外部系统：
+下面是可导入的单任务 JSON。`account_name` 会在导入时由目标账号补入，因此导出文件可以跨账号使用。
 
 ```json
 {
-  "external_forwards": [
-    {
-      "host": "127.0.0.1",
-      "port": 9999
-    },
-    {
-      "url": "http://example.com/webhook"
-    }
-  ]
+  "task_name": "daily_checkin",
+  "task_type": "sign",
+  "config": {
+    "_version": 3,
+    "engine": "event",
+    "sign_at": "0 6 * * *",
+    "random_seconds": 0,
+    "sign_interval": 1,
+    "retry_count": 2,
+    "execution_mode": "fixed",
+    "chats": [
+      {
+        "chat_id": 123456789,
+        "name": "sample_bot",
+        "event_timeout": 120,
+        "actions": [
+          { "action": 1, "text": "/start" },
+          { "action": 3, "text": "签到" },
+          { "action": 9, "keywords": ["签到成功", "今日已签到"] }
+        ]
+      }
+    ]
+  }
 }
 ```
 
----
+### 调度模式
 
-## 🏗️ 技术架构
+- `execution_mode: fixed`：使用 `sign_at`。支持 5 位 Cron、6 位 Cron，以及 `HH:MM`/`HH:MM:SS`。
+- `execution_mode: range`：使用 `range_start` 和 `range_end`，每天在时间窗口内预先随机一个执行时间；计划时间会持久化并在服务重启后恢复。此模式下 `sign_at` 仅作为每日触发基准。
+- `random_seconds`：每次实际执行前附加的随机延迟；立即执行、固定调度和范围调度都会生效。
+- `sign_interval`：同一任务多个 chat 连续执行时的间隔秒数。
+- `retry_count`：任务失败后的外层重试次数。
 
-### 后端技术栈
+### 动作类型
 
-- **框架**: FastAPI + Uvicorn
-- **数据库**: SQLAlchemy（支持 SQLite/PostgreSQL）
-- **任务调度**: APScheduler
-- **Telegram 客户端**: Pyrogram (kurigram fork)
-- **认证**: JWT + python-jose + pyotp (2FA)
-- **限流**: slowapi
+| 代码 | 行为 | 主要参数 |
+| ---: | --- | --- |
+| `1` | 发送文本 | `text` |
+| `2` | 发送骰子类 emoji | `dice` |
+| `3` | 按文本点击回调按钮 | `text` |
+| `4` | AI 识别图片选项并点击 | 无 |
+| `5` | AI 解答文本计算题并回复 | 无 |
+| `6` | AI OCR/验证码识别并回复 | `caption_pattern`、`captcha_lengths`、`captcha_charset`、`captcha_case`、`reply_to_message` |
+| `7` | AI 计算并点击对应按钮 | 无 |
+| `8` | AI 完成诗词题并点击按钮 | 无 |
+| `9` | 按消息文本判断成功 | `keywords`，命中任一项即成功 |
 
-### 前端技术栈
+事件引擎收到机器人消息后按配置响应。只有动作序列包含 `action: 9` 时才会等待最终成功关键词；纯发送、投骰子或点击任务可以省略该动作，完成已配置动作后即视为成功。
 
-- **框架**: Next.js 14 (App Router)
-- **UI 库**: React 18 + Tailwind CSS
-- **图标**: Phosphor Icons + Lucide React
-- **类型**: TypeScript
+### Chat 级事件参数
 
-### 项目结构
+每个 `chats[]` 项可覆盖事件引擎默认值：
 
+| 字段 | 对应环境变量 | 默认值 |
+| --- | --- | ---: |
+| `event_timeout` | `TG_EVENT_ENGINE_TIMEOUT` | `120` |
+| `event_retries` | `TG_EVENT_ENGINE_INLINE_RETRIES` | `3` |
+| `event_retry_wait` | `TG_EVENT_ENGINE_RETRY_WAIT` | `2` |
+| `event_history_limit` | `TG_EVENT_ENGINE_HISTORY_LIMIT` | `3` |
+| `event_history_failure_threshold` | `TG_EVENT_ENGINE_HISTORY_FAILURE_THRESHOLD` | `2` |
+| `event_history_rescue_interval` | `TG_EVENT_ENGINE_HISTORY_RESCUE_INTERVAL` | `5` |
+| `event_history_rpc_timeout` | `TG_EVENT_ENGINE_HISTORY_RPC_TIMEOUT` | `8` |
+| `event_history_result_max_age` | `TG_EVENT_ENGINE_HISTORY_RESULT_MAX_AGE` | `600` |
+| `event_action_timeout` | `TG_EVENT_ENGINE_ACTION_TIMEOUT` | `45` |
+| `event_send_timeout` | `TG_EVENT_ENGINE_SEND_TIMEOUT` | 跟随 action timeout |
+| `event_media_timeout` | `TG_EVENT_ENGINE_MEDIA_TIMEOUT` | `15` |
+| `event_ai_timeout` | `TG_EVENT_ENGINE_AI_TIMEOUT` | `30` |
+| `event_callback_timeout` | `TG_CALLBACK_TIMEOUT` | `10` |
+| `event_callback_retries` | `TG_CALLBACK_RETRIES` | `3` |
+| `event_ai_fallback` | `TG_EVENT_ENGINE_AI_FALLBACK` | `false` |
+
+历史补漏默认扫描最近 3 条消息，用于救回漏掉的结果、验证码和消息编辑。设 `event_history_limit: 0` 可对单个 chat 关闭。`event_ai_fallback` 会让未被动作序列覆盖的后续交互尝试 AI 处理，默认关闭，建议只按 chat 开启。
+
+## 技术架构
+
+```text
+tg-sign-plus/
+├── backend/              FastAPI、认证、API、调度器、SQLAlchemy 数据层
+├── frontend/             Next.js App Router 静态管理端
+├── tg_signer/            Telegram 自动化、事件引擎、CLI、消息监控
+├── tg_signer_contracts/  跨层错误契约
+├── docker/               容器入口
+├── Dockerfile            Node 构建阶段 + Python 运行阶段
+└── pyproject.toml        Python 包与 tg-signer 命令入口
 ```
-tg-signer/
-├── backend/              # FastAPI 后端
-│   ├── api/             # REST API 路由
-│   ├── core/            # 核心功能（认证、数据库、配置）
-│   ├── models/          # SQLAlchemy 模型
-│   ├── services/        # 业务逻辑层
-│   ├── repositories/    # 数据访问层
-│   ├── scheduler/       # 任务调度
-│   └── main.py          # 应用入口
-├── frontend/            # Next.js 前端
-│   ├── app/            # 页面路由
-│   ├── components/     # React 组件
-│   ├── lib/            # 工具函数
-│   └── context/        # React Context
-├── tg_signer/          # Telegram 自动化核心
-│   ├── core.py         # 核心逻辑
-│   ├── config.py       # 配置模型
-│   ├── ai_actions.py   # AI 功能
-│   └── __main__.py     # CLI 入口
-├── docker/             # Docker 配置
-├── Dockerfile          # 镜像构建
-└── pyproject.toml      # Python 项目配置
-```
 
----
+- Telegram 客户端：Kurigram（Pyrogram fork）
+- 数据库：SQLAlchemy，支持 SQLite 和 PostgreSQL
+- 调度：APScheduler
+- 管理端认证：JWT、refresh token、CSRF、TOTP
+- 前端：Next.js 16、React 18、TypeScript、Tailwind CSS
 
-## 🛡️ 安全建议
-
-1. **生产环境必须设置强密钥**
-   ```bash
-   # 生成随机密钥
-   openssl rand -hex 32
-   ```
-
-2. **启用双因素认证（2FA）**
-   - 在 Web 界面的「设置」中启用 TOTP
-   - 使用 Google Authenticator 等应用扫描二维码
-
-3. **使用 HTTPS**
-   - 生产环境建议使用 Nginx 反向代理并配置 SSL 证书
-
-4. **限制访问**
-   - 使用防火墙限制端口访问
-   - 配置 CORS 白名单
-
-5. **定期备份**
-   ```bash
-   # 备份数据目录
-   tar -czf backup-$(date +%Y%m%d).tar.gz ./data
-   ```
-
----
-
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-### 开发流程
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 提交 Pull Request
-
-### 代码规范
-
-- Python: 使用 `ruff` 进行代码检查
-- TypeScript: 使用 `eslint` 进行代码检查
+## 开发验证
 
 ```bash
-# 运行代码检查
+# Python 静态检查
 ruff check .
 
-# 自动修复
-ruff check --fix .
+# Python 测试（仅维护者本地存在 tests/ 时可用，该目录不纳入 Git 跟踪）
+pytest
+
+# 前端生产构建
+cd frontend
+npm ci
+npm run build
 ```
 
----
+## 许可证与致谢
 
-## 📝 许可证
+本项目采用 [BSD-3-Clause License](LICENSE)。
 
-本项目采用 [BSD-3-Clause License](LICENSE) 开源协议。
-
----
-
-## 🙏 致谢
-
-- [tg-signer](https://github.com/amchii/tg-signer) by [amchii](https://github.com/amchii) - 本项目基于此项目进行重构与扩展
-- [TG-SignPulse](https://github.com/akasls/TG-SignPulse) by [akasls](https://github.com/akasls) - 本项目基于此项目进行重构与扩展
-- [Pyrogram](https://github.com/pyrogram/pyrogram) - Telegram MTProto API 客户端
-- [FastAPI](https://fastapi.tiangolo.com/) - 现代化的 Python Web 框架
-- [Next.js](https://nextjs.org/) - React 应用框架
-
----
-
-<div align="center">
-
-**如果这个项目对你有帮助，请给个 ⭐️ Star 支持一下！**
-
-</div>
+- [tg-signer](https://github.com/amchii/tg-signer) by [amchii](https://github.com/amchii)
+- [TG-SignPulse](https://github.com/akasls/TG-SignPulse) by [akasls](https://github.com/akasls)
+- [Kurigram](https://github.com/KurimuzonAkuma/kurigram)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Next.js](https://nextjs.org/)
