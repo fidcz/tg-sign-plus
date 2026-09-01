@@ -36,13 +36,9 @@ COPY . /app
 RUN pip install --no-cache-dir . && \
   pip install --no-cache-dir psycopg2-binary
 
-# Install tgcrypto only on amd64 to avoid arm64 build failures.
-ARG TARGETPLATFORM
-RUN if [ "${TARGETPLATFORM:-}" = "linux/amd64" ] || [ "$(uname -m)" = "x86_64" ]; then \
-    pip install --no-cache-dir tgcrypto; \
-  else \
-    echo "Skipping tgcrypto on ${TARGETPLATFORM:-unknown}"; \
-  fi
+# TgCrypto builds successfully from source on both amd64 and arm64. The
+# build-essential package installed above provides the required compiler.
+RUN pip install --no-cache-dir tgcrypto
 
 # Frontend static files served from /web.
 RUN mkdir -p /web

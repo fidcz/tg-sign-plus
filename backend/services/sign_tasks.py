@@ -352,8 +352,12 @@ class SignTaskService:
             offset=offset,
         )
 
-    async def refresh_account_chats(self, account_name: str) -> List[Dict[str, Any]]:
-        return await self.chat_cache_service.refresh_account_chats(account_name)
+    async def refresh_account_chats(
+        self, account_name: str, *, reuse_locked_context: bool = False
+    ) -> List[Dict[str, Any]]:
+        return await self.chat_cache_service.refresh_account_chats(
+            account_name, reuse_locked_context=reuse_locked_context
+        )
 
     def get_account_chat_cache(self, account_name: str) -> Dict[str, Any]:
         return self.chat_cache_service.get_account_chat_cache(account_name)

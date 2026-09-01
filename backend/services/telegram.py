@@ -178,6 +178,7 @@ class TelegramService:
                 workdir=self.session_dir,
                 session_string=session_string,
                 in_memory=True,
+                no_updates=True,
             )
         except Exception as e:
             return {
@@ -651,7 +652,9 @@ class TelegramService:
                     try:
                         from backend.services.sign_tasks import get_sign_task_service
 
-                        await get_sign_task_service().refresh_account_chats(account_name)
+                        await get_sign_task_service().refresh_account_chats(
+                            account_name, reuse_locked_context=True
+                        )
                     except Exception:
                         pass
 
@@ -682,7 +685,9 @@ class TelegramService:
                         try:
                             from backend.services.sign_tasks import get_sign_task_service
 
-                            await get_sign_task_service().refresh_account_chats(account_name)
+                            await get_sign_task_service().refresh_account_chats(
+                                account_name, reuse_locked_context=True
+                            )
                         except Exception:
                             pass
 
@@ -770,10 +775,27 @@ class TelegramService:
             from backend.services.sign_tasks import get_sign_task_service
 
             get_sign_task_service().ensure_account_chat_cache_meta(account_name)
-            await get_sign_task_service().refresh_account_chats(account_name)
         except Exception:
-            pass
+            logger.exception(
+                "persist/ensure_account_chat_cache_meta failed account=%s",
+                account_name,
+            )
         self._accounts_cache = None
+
+    def _schedule_refresh_account_chats(self, account_name: str) -> None:
+        async def _refresh() -> None:
+            try:
+                from backend.services.sign_tasks import get_sign_task_service
+
+                await get_sign_task_service().refresh_account_chats(account_name)
+            except Exception:
+                logger.exception(
+                    "background refresh_account_chats failed account=%s",
+                    account_name,
+                )
+
+        if account_name:
+            asyncio.create_task(_refresh())
 
     def _log_qr_state(
         self, login_id: str, state: str, data: Optional[Dict[str, Any]] = None
@@ -825,15 +847,16 @@ class TelegramService:
         if client:
             try:
                 if getattr(client, "is_initialized", False):
-                    await client.stop()
+                    await asyncio.wait_for(client.stop(), timeout=15)
                 elif getattr(client, "is_connected", False):
-                    await client.disconnect()
+                    await asyncio.wait_for(client.disconnect(), timeout=5)
             except Exception:
-                try:
-                    if getattr(client, "is_connected", False):
-                        await client.disconnect()
-                except Exception:
-                    pass
+                pass
+            try:
+                if getattr(client, "is_connected", False):
+                    await asyncio.wait_for(client.disconnect(), timeout=5)
+            except Exception:
+                pass
         if not preserve_session:
             account_name = data.get("account_name")
             if account_name:
@@ -1049,7 +1072,6 @@ class TelegramService:
     async def get_qr_login_status(self, login_id: str) -> Dict[str, Any]:
         from pyrogram import raw, types
         from pyrogram.errors import FloodWait, SessionPasswordNeeded, Unauthorized
-        from pyrogram.methods.messages.inline_session import get_session
 
         data = _qr_login_sessions.get(login_id)
         if not data:
@@ -1143,6 +1165,7 @@ class TelegramService:
             self._log_qr_state(login_id, "success", data)
             account_name = data.get("account_name")
             await self._cleanup_qr_login(login_id, preserve_session=True)
+            self._schedule_refresh_account_chats(account_name)
 
             account = None
             try:
@@ -1192,7 +1215,7 @@ class TelegramService:
                     try:
                         for _ in range(2):
                             if migrate_dc_id:
-                                session = await get_session(client, migrate_dc_id)
+                                session = await client.get_session(migrate_dc_id)
                                 self._capture_migrate_auth(data, session)
                                 result = await session.invoke(
                                     raw.functions.auth.ImportLoginToken(token=token)
@@ -1278,7 +1301,9 @@ class TelegramService:
                                     data["migrate_dc_id"] = export_result.dc_id
                                     data["token"] = export_result.token
                                     try:
-                                        session = await get_session(client, export_result.dc_id)
+                                        session = await client.get_session(
+                                            export_result.dc_id
+                                        )
                                         self._capture_migrate_auth(data, session)
                                         migrate_result = await session.invoke(
                                             raw.functions.auth.ImportLoginToken(token=export_result.token)
@@ -1366,7 +1391,6 @@ class TelegramService:
             SessionPasswordNeeded,
             Unauthorized,
         )
-        from pyrogram.methods.messages.inline_session import get_session
         from pyrogram.utils import compute_password_check
 
         password = (password or "").strip()
@@ -1399,7 +1423,7 @@ class TelegramService:
             user_from_password = None
             try:
                 if data.get("migrate_dc_id"):
-                    session = await get_session(client, data.get("migrate_dc_id"))
+                    session = await client.get_session(data.get("migrate_dc_id"))
                     self._capture_migrate_auth(data, session)
                     auth = await session.invoke(
                         raw.functions.auth.CheckPassword(
@@ -1438,6 +1462,7 @@ class TelegramService:
             account_name = data.get("account_name")
             self._log_qr_state(login_id, "success", data)
             await self._cleanup_qr_login(login_id, preserve_session=True)
+            self._schedule_refresh_account_chats(account_name)
 
             account = None
             try:
@@ -1474,7 +1499,7 @@ class TelegramService:
                         try:
                             for _ in range(2):
                                 if migrate_dc_id:
-                                    session = await get_session(client, migrate_dc_id)
+                                    session = await client.get_session(migrate_dc_id)
                                     self._capture_migrate_auth(data, session)
                                     result = await session.invoke(
                                         raw.functions.auth.ImportLoginToken(token=token)
@@ -1567,8 +1592,8 @@ class TelegramService:
                                 data["migrate_dc_id"] = export_result.dc_id
                                 data["token"] = export_result.token
                                 try:
-                                    session = await get_session(
-                                        client, export_result.dc_id
+                                    session = await client.get_session(
+                                        export_result.dc_id
                                     )
                                     self._capture_migrate_auth(data, session)
                                     migrate_result = await session.invoke(
@@ -1630,7 +1655,7 @@ class TelegramService:
                 try:
                     for _ in range(2):
                         if migrate_dc_id:
-                            session = await get_session(client, migrate_dc_id)
+                            session = await client.get_session(migrate_dc_id)
                             self._capture_migrate_auth(data, session)
                             result = await session.invoke(
                                 raw.functions.auth.ImportLoginToken(token=token)
@@ -1704,6 +1729,7 @@ class TelegramService:
 
                     account_name = data.get("account_name")
                     await self._cleanup_qr_login(login_id, preserve_session=True)
+                    self._schedule_refresh_account_chats(account_name)
 
                     account = None
                     try:

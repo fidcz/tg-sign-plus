@@ -100,13 +100,54 @@ def _is_network_timeout_error(exc: Exception) -> bool:
     )
 
 
+def _is_client_stopped_exception(exc: Exception) -> bool:
+    err_str = str(exc).lower()
+    return (
+        "has not been started yet" in err_str
+        or "closed database" in err_str
+        or "database" in err_str and "closed" in err_str
+    )
+
+
+def _is_transient_updates_rpc_error(exc: Exception) -> bool:
+    """Telegram 内部 500 类错误对 updates 差分请求是非致命、可丢弃的。"""
+    try:
+        if isinstance(exc, errors.RPCError):
+            err_value = getattr(exc, "value", None)
+            try:
+                if int(err_value or 0) >= 500:
+                    return True
+            except (TypeError, ValueError):
+                pass
+    except Exception:
+        pass
+    err_str = str(exc).lower()
+    return (
+        "persistent_timestamp_outdated" in err_str
+        or "500 " in err_str
+        or "rpc_call_fail" in err_str
+        or "internal server error" in err_str
+    )
+
+
+def _client_is_stopped(client) -> bool:
+    return bool(getattr(client, "_tg_signer_retired", False)) or (
+        not getattr(client, "is_connected", False)
+        and not getattr(client, "is_initialized", False)
+    )
+
+
 async def _patched_handle_updates(self, *args, **kwargs):
     try:
         return await _original_handle_updates(self, *args, **kwargs)
     except Exception as e:
-        if _is_network_timeout_error(e):
+        if (
+            _is_network_timeout_error(e)
+            or _is_client_stopped_exception(e)
+            or _client_is_stopped(self)
+        ):
             logging.getLogger("tg-signer").debug(
-                "Drop Telegram update batch due to network error: %s", e
+                "Drop Telegram update batch for stopped client: %s", e
             )
             return None
         raise
@@ -121,40 +162,58 @@ async def _patched_invoke(self, query, *args, **kwargs):
     if len(args) < 2:
         kwargs.setdefault("timeout", _tg_rpc_timeout)
 
-    if isinstance(query, (raw.functions.updates.GetChannelDifference, raw.functions.updates.GetDifference)):
-        if len(args) < 1:
-            kwargs.setdefault("retries", _tg_rpc_retries)
-        if len(args) < 2:
-            kwargs.setdefault("timeout", _tg_rpc_timeout)
-        kwargs.setdefault("sleep_threshold", _read_int_env("TG_SLEEP_THRESHOLD", 120, minimum=0))
+    if not isinstance(query, (raw.functions.updates.GetChannelDifference, raw.functions.updates.GetDifference)):
+        return await _original_invoke(self, query, *args, **kwargs)
 
-        async with _get_channel_diff_semaphore:
-            max_retries = 2
-            base_delay = 1.0
-            for attempt in range(max_retries + 1):
-                try:
-                    return await _original_invoke(self, query, *args, **kwargs)
-                except Exception as e:
-                    err_str = str(e).lower()
-                    if _is_network_timeout_error(e) or "flood" in err_str:
-                        if attempt < max_retries:
-                            delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
-                            if "flood" in err_str and hasattr(e, "value"):
-                                delay = min(e.value, 3.0)  # Wait for a shorter time, max 3 seconds
-                            await asyncio.sleep(delay)
-                            continue
+    if len(args) < 1:
+        kwargs["retries"] = _read_int_env("TG_UPDATES_RETRIES", 0, minimum=0)
+    if len(args) < 2:
+        kwargs.setdefault("timeout", _tg_rpc_timeout)
+    kwargs.setdefault("sleep_threshold", _read_int_env("TG_SLEEP_THRESHOLD", 120, minimum=0))
 
-                        logger.warning(f"Drop updates for {type(query).__name__} due to error: {e}")
-
-                        if isinstance(query, raw.functions.updates.GetChannelDifference):
-                            from pyrogram.raw.types.updates import (
-                                ChannelDifferenceEmpty,
-                            )
-                            return ChannelDifferenceEmpty(pts=query.pts, timeout=0, final=True)
-                        elif isinstance(query, raw.functions.updates.GetDifference):
-                            from pyrogram.raw.types.updates import DifferenceEmpty
-                            return DifferenceEmpty(date=query.date, seq=query.pts)
+    async with _get_channel_diff_semaphore:
+        max_retries = 2
+        base_delay = 1.0
+        for attempt in range(max_retries + 1):
+            try:
+                return await _original_invoke(self, query, *args, **kwargs)
+            except Exception as e:
+                if _is_client_stopped_exception(e) or _client_is_stopped(self):
+                    logging.getLogger("tg-signer").debug(
+                        "Stop retrying %s: client stopped: %s",
+                        type(query).__name__,
+                        e,
+                    )
                     raise
+                err_str = str(e).lower()
+                is_transient = (
+                    _is_network_timeout_error(e)
+                    or "flood" in err_str
+                    or _is_transient_updates_rpc_error(e)
+                )
+                if not is_transient:
+                    raise
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                    if "flood" in err_str and hasattr(e, "value"):
+                        delay = min(e.value, 3.0)
+                    await asyncio.sleep(delay)
+                    continue
+
+                logger.warning(
+                    "Drop updates for %s due to error: %s",
+                    type(query).__name__,
+                    e,
+                )
+                if isinstance(query, raw.functions.updates.GetChannelDifference):
+                    from pyrogram.raw.types.updates import (
+                        ChannelDifferenceEmpty,
+                    )
+                    return ChannelDifferenceEmpty(pts=query.pts, timeout=0, final=True)
+                elif isinstance(query, raw.functions.updates.GetDifference):
+                    from pyrogram.raw.types.updates import DifferenceEmpty
+                    return DifferenceEmpty(date=query.date, seq=query.pts)
+                raise
     return await _original_invoke(self, query, *args, **kwargs)
 
 BaseClient.invoke = _patched_invoke
@@ -178,6 +237,7 @@ def make_dirs(path: pathlib.Path, exist_ok=True):
     if not path.is_dir():
         os.makedirs(path, exist_ok=exist_ok)
     return path
+
 
 
 ConfigT = TypeVar("ConfigT", bound=BaseJSONConfig)

@@ -261,7 +261,9 @@ class SignTaskChatCacheService:
         finally:
             db.close()
 
-    async def refresh_account_chats(self, account_name: str) -> List[Dict[str, Any]]:
+    async def refresh_account_chats(
+        self, account_name: str, *, reuse_locked_context: bool = False
+    ) -> List[Dict[str, Any]]:
         from pyrogram.enums import ChatType
         from backend.services.config import get_config_service
 
@@ -310,54 +312,52 @@ class SignTaskChatCacheService:
 
             account_lock = self._account_locks[account_name]
 
-            async def _fetch_chats(active_client) -> List[Dict[str, Any]]:
+            async def _collect_dialogs(active_client) -> List[Dict[str, Any]]:
                 local_chats: List[Dict[str, Any]] = []
                 seen_chat_ids: set[int] = set()
                 duplicate_chat_count = 0
-                async with account_lock:
-                    async with get_global_semaphore():
-                        async with active_client:
-                            await active_client.get_me()
+                async with active_client:
+                    await active_client.get_me()
+                    try:
+                        async for dialog in active_client.get_dialogs():
                             try:
-                                async for dialog in active_client.get_dialogs():
-                                    try:
-                                        chat = getattr(dialog, "chat", None)
-                                        if chat is None:
-                                            logger.warning("get_dialogs 返回空 chat，已跳过")
-                                            continue
-                                        chat_id = getattr(chat, "id", None)
-                                        if chat_id is None:
-                                            logger.warning("get_dialogs 返回 chat.id 为空，已跳过")
-                                            continue
+                                chat = getattr(dialog, "chat", None)
+                                if chat is None:
+                                    logger.warning("get_dialogs 返回空 chat，已跳过")
+                                    continue
+                                chat_id = getattr(chat, "id", None)
+                                if chat_id is None:
+                                    logger.warning("get_dialogs 返回 chat.id 为空，已跳过")
+                                    continue
 
-                                        normalized_chat_id = int(chat_id)
-                                        if normalized_chat_id in seen_chat_ids:
-                                            duplicate_chat_count += 1
-                                            continue
-                                        seen_chat_ids.add(normalized_chat_id)
+                                normalized_chat_id = int(chat_id)
+                                if normalized_chat_id in seen_chat_ids:
+                                    duplicate_chat_count += 1
+                                    continue
+                                seen_chat_ids.add(normalized_chat_id)
 
-                                        chat_info = {
-                                            "id": normalized_chat_id,
-                                            "title": chat.title
-                                            or chat.first_name
-                                            or chat.username
-                                            or str(normalized_chat_id),
-                                            "username": chat.username,
-                                            "type": chat.type.name.lower(),
-                                            "first_name": getattr(chat, "first_name", None),
-                                        }
-                                        if chat.type == ChatType.BOT:
-                                            chat_info["title"] = f"🤖 {chat_info['title']}"
-                                        local_chats.append(chat_info)
-                                    except Exception as e:
-                                        logger.warning(
-                                            f"处理 dialog 失败，已跳过: {type(e).__name__}: {e}"
-                                        )
-                                        continue
+                                chat_info = {
+                                    "id": normalized_chat_id,
+                                    "title": chat.title
+                                    or chat.first_name
+                                    or chat.username
+                                    or str(normalized_chat_id),
+                                    "username": chat.username,
+                                    "type": chat.type.name.lower(),
+                                    "first_name": getattr(chat, "first_name", None),
+                                }
+                                if chat.type == ChatType.BOT:
+                                    chat_info["title"] = f"🤖 {chat_info['title']}"
+                                local_chats.append(chat_info)
                             except Exception as e:
                                 logger.warning(
-                                    f"get_dialogs 中断，返回已获取结果: {type(e).__name__}: {e}"
+                                    f"处理 dialog 失败，已跳过: {type(e).__name__}: {e}"
                                 )
+                                continue
+                    except Exception as e:
+                        logger.warning(
+                            f"get_dialogs 中断，返回已获取结果: {type(e).__name__}: {e}"
+                        )
                 if duplicate_chat_count:
                     logger.warning(
                         "Account %s chat cache refresh skipped %s duplicate dialogs",
@@ -365,6 +365,15 @@ class SignTaskChatCacheService:
                         duplicate_chat_count,
                     )
                 return local_chats
+
+            async def _fetch_chats(active_client) -> List[Dict[str, Any]]:
+                if reuse_locked_context:
+                    async with get_global_semaphore():
+                        return await _collect_dialogs(active_client)
+                else:
+                    async with account_lock:
+                        async with get_global_semaphore():
+                            return await _collect_dialogs(active_client)
 
             try:
                 chats = await _fetch_chats(client)
