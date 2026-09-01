@@ -1,228 +1,65 @@
-name: Publish Tg Sign Plus Docker Image
+name: Build and publish Docker image
 
 on:
-  workflow_dispatch:  # 手动触发
-  release:
-    types: [published]  # 新 release 发布时触发
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  prepare:
+  docker:
+    name: Build multi-architecture image
     runs-on: ubuntu-latest
 
-    outputs:
-      latest_tag: ${{ steps.get_latest_tag.outputs.latest_tag }}
-      should_build: ${{ steps.compare_versions.outputs.should_build }}
-
     steps:
-      - name: Get latest release tag
-        id: get_latest_tag
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: |
-          if [ -n "$RELEASE_TAG" ]; then
-            LATEST_TAG="$RELEASE_TAG"
-          else
-            LATEST_TAG=$(curl -s https://api.github.com/repos/ssfun/tg-sign-plus/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
-          fi
-          echo "Latest tag: $LATEST_TAG"
-          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Get current Docker image version
-        id: get_current_version
-        run: |
-          # 从 Docker Hub 获取当前镜像的版本号
-          CURRENT_TAG=$(curl -s https://hub.docker.com/v2/repositories/${{ secrets.DOCKER_USERNAME }}/tg-sign-plus/tags/ | jq -r '.results[] | select(.name != "latest") | .name' | sort -V | tail -n 1)
-          if [ -z "$CURRENT_TAG" ]; then
-            CURRENT_TAG="0.0.0"  # 如果没有找到版本号，默认使用 0.0.0
-          fi
-          echo "Current Docker image version: $CURRENT_TAG"
-          echo "current_tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
-
-      - name: Compare versions
-        id: compare_versions
-        run: |
-          LATEST_TAG="${{ steps.get_latest_tag.outputs.latest_tag }}"
-          CURRENT_TAG="${{ steps.get_current_version.outputs.current_tag }}"
-
-          # 去掉版本号中的 "v" 前缀
-          LATEST_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
-          CURRENT_VERSION=$(echo "$CURRENT_TAG" | sed 's/^v//')
-
-          # 使用 sort -V 比较版本号
-          HIGHER_VERSION=$(echo -e "$LATEST_VERSION\n$CURRENT_VERSION" | sort -V | tail -n 1)
-
-          if [[ "$HIGHER_VERSION" == "$LATEST_VERSION" && "$LATEST_VERSION" != "$CURRENT_VERSION" ]]; then
-            echo "New version available, continuing..."
-            echo "should_build=true" >> $GITHUB_OUTPUT
-          else
-            echo "No new version available, stopping..."
-            echo "should_build=false" >> $GITHUB_OUTPUT
-          fi
-
-  build-image:
-    needs: prepare
-    if: needs.prepare.outputs.should_build == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            platform_name: linux-amd64
-            runner: ubuntu-latest
-          - platform: linux/arm64
-            platform_name: linux-arm64
-            runner: ubuntu-24.04-arm
-
-    runs-on: ${{ matrix.runner }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push image by digest
-        id: build
-        uses: docker/build-push-action@v7
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/tg-sign-plus
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=tag
+            type=sha,prefix=sha-
+
+      - name: Build and push multi-architecture image
+        uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: ${{ matrix.platform }}
-          outputs: type=image,name=${{ secrets.DOCKER_USERNAME }}/tg-sign-plus,push-by-digest=true,name-canonical=true,push=true
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            APP_VERSION=${{ needs.prepare.outputs.latest_tag }}
-          cache-from: type=gha,scope=tg-sign-plus-${{ matrix.platform_name }}
-          cache-to: type=gha,scope=tg-sign-plus-${{ matrix.platform_name }},mode=max
-
-      - name: Export image digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-
-      - name: Upload image digest
-        uses: actions/upload-artifact@v4
-        with:
-          name: digests-${{ matrix.platform_name }}
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  publish-manifest:
-    needs:
-      - prepare
-      - build-image
-    if: needs.prepare.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download image digests
-        uses: actions/download-artifact@v4
-        with:
-          path: /tmp/digests
-          pattern: digests-*
-          merge-multiple: true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Create and push multi-arch manifest
-        working-directory: /tmp/digests
-        env:
-          IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/tg-sign-plus
-          IMAGE_TAG: ${{ needs.prepare.outputs.latest_tag }}
-        run: |
-          docker buildx imagetools create \
-            -t "$IMAGE_NAME:latest" \
-            -t "$IMAGE_NAME:$IMAGE_TAG" \
-            $(printf "$IMAGE_NAME@sha256:%s " *)
+            APP_VERSION=${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Inspect published image
-        env:
-          IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/tg-sign-plus
-          IMAGE_TAG: ${{ needs.prepare.outputs.latest_tag }}
-        run: |
-          docker buildx imagetools inspect "$IMAGE_NAME:$IMAGE_TAG"
-
-  trigger-render-deployment:
-    needs:
-      - prepare
-      - publish-manifest
-    if: needs.prepare.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-
-    steps:
-      - name: Trigger Render Deployment
-        continue-on-error: true
-        env:
-          RENDER_DEPLOY_HOOKS: ${{ secrets.RENDER_DEPLOY_HOOKS }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "$RENDER_DEPLOY_HOOKS" ]; then
-            echo "⚠️ RENDER_DEPLOY_HOOKS is not configured. Skipping Render deployment."
-            exit 0
-          fi
-
-          trigger_render_deploy() {
-            local name="$1"
-            local hook_url="$2"
-
-            if [ -z "$hook_url" ]; then
-              echo "⚠️ Render deployment target '$name' is missing hook URL. Skipping."
-              return 0
-            fi
-
-            echo "Triggering Render deployment for $name..."
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$hook_url" || echo "000")
-
-            if [ "$HTTP_STATUS" -eq 200 ]; then
-              echo "✅ Render deployment triggered successfully for $name."
-            else
-              echo "⚠️ Failed to trigger Render deployment for $name. HTTP Status: $HTTP_STATUS. Continuing."
-              return 0
-            fi
-          }
-
-          if ! echo "$RENDER_DEPLOY_HOOKS" | jq -e 'type == "array"' >/dev/null; then
-            echo "⚠️ RENDER_DEPLOY_HOOKS must be a JSON array. Skipping Render deployment."
-            exit 0
-          fi
-
-          echo "$RENDER_DEPLOY_HOOKS" | jq -c '.[]' | while IFS= read -r target; do
-            trigger_render_deploy \
-              "$(echo "$target" | jq -r 'if type == "object" then (.name // "default") else "default" end')" \
-              "$(echo "$target" | jq -r 'if type == "object" then (.hook_url // .url // empty) else empty end')"
-          done
-
-  cleanup-runs:
-    runs-on: ubuntu-latest
-    needs:
-      - trigger-render-deployment  # 确保在部署任务完成后执行
-    if: always()
-    permissions:
-      actions: write  # 需要 write 权限来删除运行日志
-      contents: read  # 需要 read 权限来访问仓库信息
-    steps:
-      - name: Delete old workflow runs
-        uses: Mattraks/delete-workflow-runs@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # 使用默认的 GITHUB_TOKEN
-          repository: ${{ github.repository }}  # 当前仓库
-          retain_days: 7  # 保留最近 7 天的运行日志
-          keep_minimum_runs: 6  # 至少保留 6 条运行日志
+        run: docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/tg-sign-plus:sha-${GITHUB_SHA::7}

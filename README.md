@@ -53,7 +53,7 @@ Docker 镜像会同时构建 Next.js 静态页面并由 FastAPI 托管，部署�
 ```yaml
 services:
   tg-sign-plus:
-    image: sfun/tg-sign-plus:latest
+    image: ghcr.io/fidcz/tg-sign-plus:latest
     container_name: tg-sign-plus
     ports:
       - "8080:8080"
@@ -102,16 +102,28 @@ docker run -d \
   -e APP_SECRET_KEY="$(openssl rand -hex 32)" \
   -e ADMIN_PASSWORD="replace-with-a-strong-password" \
   --restart unless-stopped \
-  sfun/tg-sign-plus:latest
+  ghcr.io/fidcz/tg-sign-plus:latest
 ```
+
+GHCR 镜像由 GitHub Actions 自动构建，同时支持 `linux/amd64` 和 `linux/arm64`。如果 GitHub Container Registry package 不是公开的，请先执行 `docker login ghcr.io`，或在 GitHub 仓库的 **Packages** 设置中将 `tg-sign-plus` 设置为 Public。
 
 ### 自行构建
 
 ```bash
-git clone https://github.com/ssfun/tg-sign-plus.git
+git clone https://github.com/fidcz/tg-sign-plus.git
 cd tg-sign-plus
 docker build -t tg-sign-plus:local .
 docker run -d --name tg-sign-plus -p 8080:8080 -v "$(pwd)/data:/data" tg-sign-plus:local
+```
+
+如需自行构建并发布多架构镜像：
+
+```bash
+docker buildx create --name tg-sign-plus-builder --use
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t ghcr.io/fidcz/tg-sign-plus:latest \
+  --push .
 ```
 
 镜像构建阶段需要拉取 `ghcr.io/komari-monitor/komari-agent:latest`。只有同时设置 `KOMARI_SERVER` 和 `KOMARI_SECRET` 时，容器入口才会启动该 agent。
@@ -127,7 +139,7 @@ docker run -d --name tg-sign-plus -p 8080:8080 -v "$(pwd)/data:/data" tg-sign-pl
 ### 后端
 
 ```bash
-git clone https://github.com/ssfun/tg-sign-plus.git
+git clone https://github.com/fidcz/tg-sign-plus.git
 cd tg-sign-plus
 pip install -e .
 
